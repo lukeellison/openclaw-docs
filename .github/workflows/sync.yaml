@@ -1,0 +1,41 @@
+name: Sync OpenClaw Docs
+on:
+  schedule:
+    - cron: '0 0 * * *' # Runs daily at midnight
+  workflow_dispatch:   # Allows you to click a button to sync manually
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Needed to push changes back to your repo
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+
+      - name: Fetch Remote Docs
+        run: |
+          # 1. Clone only the docs folder using sparse checkout
+          git clone --depth 1 --filter=blob:none --sparse https://github.com/openclaw/openclaw.git source_repo
+          cd source_repo
+          git sparse-checkout set docs
+          cd ..
+
+          # 2. Sync files to your local 'docs' folder
+          # This uses rsync to ensure deleted files in source are deleted in yours
+          rsync -av --delete source_repo/docs/ docs/
+          
+          # 3. Clean up the temporary clone
+          rm -rf source_repo
+
+      - name: Commit and Push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/
+          if git diff --quiet && git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Sync: Update docs from openclaw/openclaw"
+            git push
+          fi
