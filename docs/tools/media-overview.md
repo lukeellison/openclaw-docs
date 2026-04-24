@@ -4,7 +4,7 @@ read_when:
   - Looking for an overview of media capabilities
   - Deciding which media provider to configure
   - Understanding how async media generation works
-title: "Media Overview"
+title: "Media overview"
 ---
 
 # Media Generation and Understanding
@@ -31,11 +31,12 @@ This table shows which providers support which media capabilities across the pla
 | BytePlus   |       | Yes   |       |     |                     |                     |
 | ComfyUI    | Yes   | Yes   | Yes   |     |                     |                     |
 | Deepgram   |       |       |       |     | Yes                 |                     |
-| ElevenLabs |       |       |       | Yes |                     |                     |
+| ElevenLabs |       |       |       | Yes | Yes                 |                     |
 | fal        | Yes   | Yes   |       |     |                     |                     |
 | Google     | Yes   | Yes   | Yes   |     |                     | Yes                 |
 | Microsoft  |       |       |       | Yes |                     |                     |
 | MiniMax    | Yes   | Yes   | Yes   | Yes |                     |                     |
+| Mistral    |       |       |       |     | Yes                 |                     |
 | OpenAI     | Yes   | Yes   |       | Yes | Yes                 | Yes                 |
 | Qwen       |       | Yes   |       |     |                     |                     |
 | Runway     |       | Yes   |       |     |                     |                     |
@@ -51,6 +52,12 @@ Media understanding uses any vision-capable or audio-capable model registered in
 
 Video and music generation run as background tasks because provider processing typically takes 30 seconds to several minutes. When the agent calls `video_generate` or `music_generate`, OpenClaw submits the request to the provider, returns a task ID immediately, and tracks the job in the task ledger. The agent continues responding to other messages while the job runs. When the provider finishes, OpenClaw wakes the agent so it can post the finished media back into the original channel. Image generation and TTS are synchronous and complete inline with the reply.
 
+Deepgram, ElevenLabs, Mistral, OpenAI, and xAI can all transcribe inbound
+audio through the batch `tools.media.audio` path when configured. Deepgram,
+ElevenLabs, Mistral, OpenAI, and xAI also register Voice Call streaming STT
+providers, so live phone audio can be forwarded to the selected vendor
+without waiting for a completed recording.
+
 OpenAI maps to OpenClaw's image, video, batch TTS, batch STT, Voice Call
 streaming STT, realtime voice, and memory embedding surfaces. xAI currently
 maps to OpenClaw's image, video, search, code-execution, batch TTS, batch STT,
@@ -65,3 +72,10 @@ voice contract can represent it.
 - [Music Generation](/tools/music-generation) -- creating music and audio tracks
 - [Text-to-Speech](/tools/tts) -- converting replies to spoken audio
 - [Media Understanding](/nodes/media-understanding) -- understanding inbound images, audio, and video
+
+## Related
+
+- [Image generation](/tools/image-generation)
+- [Video generation](/tools/video-generation)
+- [Music generation](/tools/music-generation)
+- [Text-to-speech](/tools/tts)
