@@ -64,6 +64,9 @@ the child config scoped to the transport under test, so Matrix runs without
 a combined stdout/stderr log into the selected Matrix QA output directory. To
 capture the outer `scripts/run-node.mjs` build/launcher output too, set
 `OPENCLAW_RUN_NODE_OUTPUT_LOG=<path>` to a repo-local log file.
+Matrix progress is printed by default. `OPENCLAW_QA_MATRIX_TIMEOUT_MS` bounds
+the full run, and `OPENCLAW_QA_MATRIX_CLEANUP_TIMEOUT_MS` bounds cleanup so a
+stuck Docker teardown reports the exact recovery command instead of hanging.
 
 For a transport-real Telegram smoke lane, run:
 
@@ -83,16 +86,44 @@ you want artifacts without a failing exit code.
 The Telegram report and summary include per-reply RTT from the driver message
 send request to the observed SUT reply, starting with the canary.
 
+Before using pooled live credentials, run:
+
+```bash
+pnpm openclaw qa credentials doctor
+```
+
+The doctor checks Convex broker env, validates endpoint settings, and verifies
+admin/list reachability when the maintainer secret is present. It reports only
+set/missing status for secrets.
+
+For a transport-real Discord smoke lane, run:
+
+```bash
+pnpm openclaw qa discord
+```
+
+That lane targets one real private Discord guild channel with two bots: a
+driver bot controlled by the harness and a SUT bot started by the child
+OpenClaw gateway through the bundled Discord plugin. It requires
+`OPENCLAW_QA_DISCORD_GUILD_ID`, `OPENCLAW_QA_DISCORD_CHANNEL_ID`,
+`OPENCLAW_QA_DISCORD_DRIVER_BOT_TOKEN`, `OPENCLAW_QA_DISCORD_SUT_BOT_TOKEN`,
+and `OPENCLAW_QA_DISCORD_SUT_APPLICATION_ID` when using env credentials.
+The lane verifies channel mention handling and checks that the SUT bot has
+registered the native `/help` command with Discord.
+The command exits non-zero when any scenario fails. Use `--allow-failures` when
+you want artifacts without a failing exit code.
+
 Live transport lanes now share one smaller contract instead of each inventing
 their own scenario list shape:
 
 `qa-channel` remains the broad synthetic product-behavior suite and is not part
 of the live transport coverage matrix.
 
-| Lane     | Canary | Mention gating | Allowlist block | Top-level reply | Restart resume | Thread follow-up | Thread isolation | Reaction observation | Help command |
-| -------- | ------ | -------------- | --------------- | --------------- | -------------- | ---------------- | ---------------- | -------------------- | ------------ |
-| Matrix   | x      | x              | x               | x               | x              | x                | x                | x                    |              |
-| Telegram | x      |                |                 |                 |                |                  |                  |                      | x            |
+| Lane     | Canary | Mention gating | Allowlist block | Top-level reply | Restart resume | Thread follow-up | Thread isolation | Reaction observation | Help command | Native command registration |
+| -------- | ------ | -------------- | --------------- | --------------- | -------------- | ---------------- | ---------------- | -------------------- | ------------ | --------------------------- |
+| Matrix   | x      | x              | x               | x               | x              | x                | x                | x                    |              |                             |
+| Telegram | x      | x              |                 |                 |                |                  |                  |                      | x            |                             |
+| Discord  | x      | x              |                 |                 |                |                  |                  |                      |              | x                           |
 
 This keeps `qa-channel` as the broad product-behavior suite while Matrix,
 Telegram, and future live transports share one explicit transport-contract

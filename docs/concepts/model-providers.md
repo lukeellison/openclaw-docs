@@ -21,6 +21,15 @@ For model selection rules, see [/concepts/models](/concepts/models).
   and `openai/<model>` plus `agents.defaults.embeddedHarness.runtime: "codex"`
   uses the native Codex app-server harness. See [OpenAI](/providers/openai)
   and [Codex harness](/plugins/codex-harness).
+- Plugin auto-enable follows that same boundary: `openai-codex/<model>` belongs
+  to the OpenAI plugin, while the Codex plugin is enabled by
+  `embeddedHarness.runtime: "codex"` or legacy `codex/<model>` refs.
+- CLI runtimes use the same split: choose canonical model refs such as
+  `anthropic/claude-*`, `google/gemini-*`, or `openai/gpt-*`, then set
+  `agents.defaults.embeddedHarness.runtime` to `claude-cli`,
+  `google-gemini-cli`, or `codex-cli` when you want a local CLI backend.
+  Legacy `claude-cli/*`, `google-gemini-cli/*`, and `codex-cli/*` refs migrate
+  back to canonical provider refs with the runtime recorded separately.
 - GPT-5.5 is currently available through subscription/OAuth routes:
   `openai-codex/gpt-5.5` in PI or `openai/gpt-5.5` with the Codex app-server
   harness. The direct API-key route for `openai/gpt-5.5` is supported once
@@ -110,6 +119,9 @@ OpenClaw ships with the pi‑ai catalog. These providers require **no**
 - PI model ref: `openai-codex/gpt-5.5`
 - Native Codex app-server harness ref: `openai/gpt-5.5` with `agents.defaults.embeddedHarness.runtime: "codex"`
 - Legacy model refs: `codex/gpt-*`
+- Plugin boundary: `openai-codex/*` loads the OpenAI plugin; the native Codex
+  app-server plugin is selected only by the Codex harness runtime or legacy
+  `codex/*` refs.
 - CLI: `openclaw onboard --auth-choice openai-codex` or `openclaw models auth login --provider openai-codex`
 - Default transport is `auto` (WebSocket-first, SSE fallback)
 - Override per PI model via `agents.defaults.models["openai-codex/<model>"].params.transport` (`"sse"`, `"websocket"`, or `"auto"`)
@@ -168,6 +180,8 @@ OpenClaw ships with the pi‑ai catalog. These providers require **no**
 - Example models: `google/gemini-3.1-pro-preview`, `google/gemini-3-flash-preview`
 - Compatibility: legacy OpenClaw config using `google/gemini-3.1-flash-preview` is normalized to `google/gemini-3-flash-preview`
 - CLI: `openclaw onboard --auth-choice gemini-api-key`
+- Thinking: `/think adaptive` uses Google dynamic thinking. Gemini 3/3.1 omit a fixed
+  `thinkingLevel`; Gemini 2.5 sends `thinkingBudget: -1`.
 - Direct Gemini runs also accept `agents.defaults.models["google/<model>"].params.cachedContent`
   (or legacy `cached_content`) to forward a provider-native
   `cachedContents/...` handle; Gemini cache hits surface as OpenClaw `cacheRead`
@@ -229,6 +243,7 @@ See [/providers/kilocode](/providers/kilocode) for setup details.
 | BytePlus                | `byteplus` / `byteplus-plan`     | `BYTEPLUS_API_KEY`                                           | `byteplus-plan/ark-code-latest`                 |
 | Cerebras                | `cerebras`                       | `CEREBRAS_API_KEY`                                           | `cerebras/zai-glm-4.7`                          |
 | Cloudflare AI Gateway   | `cloudflare-ai-gateway`          | `CLOUDFLARE_AI_GATEWAY_API_KEY`                              | —                                               |
+| DeepSeek                | `deepseek`                       | `DEEPSEEK_API_KEY`                                           | `deepseek/deepseek-v4-flash`                    |
 | GitHub Copilot          | `github-copilot`                 | `COPILOT_GITHUB_TOKEN` / `GH_TOKEN` / `GITHUB_TOKEN`         | —                                               |
 | Groq                    | `groq`                           | `GROQ_API_KEY`                                               | —                                               |
 | Hugging Face Inference  | `huggingface`                    | `HUGGINGFACE_HUB_TOKEN` or `HF_TOKEN`                        | `huggingface/deepseek-ai/DeepSeek-R1`           |
@@ -253,7 +268,7 @@ Quirks worth knowing:
 
 - **OpenRouter** applies its app-attribution headers and Anthropic `cache_control` markers only on verified `openrouter.ai` routes. As a proxy-style OpenAI-compatible path, it skips native-OpenAI-only shaping (`serviceTier`, Responses `store`, prompt-cache hints, OpenAI reasoning-compat). Gemini-backed refs keep proxy-Gemini thought-signature sanitation only.
 - **Kilo Gateway** Gemini-backed refs follow the same proxy-Gemini sanitation path; `kilocode/kilo/auto` and other proxy-reasoning-unsupported refs skip proxy reasoning injection.
-- **MiniMax** API-key onboarding writes explicit M2.7 model definitions with `input: ["text", "image"]`; the bundled catalog keeps chat refs text-only until that config is materialized.
+- **MiniMax** API-key onboarding writes explicit text-only M2.7 chat model definitions; image understanding stays on the plugin-owned `MiniMax-VL-01` media provider.
 - **xAI** uses the xAI Responses path. `/fast` or `params.fastMode: true` rewrites `grok-3`, `grok-3-mini`, `grok-4`, and `grok-4-0709` to their `*-fast` variants. `tool_stream` defaults on; disable via `agents.defaults.models["xai/<model>"].params.tool_stream=false`.
 - **Cerebras** GLM models use `zai-glm-4.7` / `zai-glm-4.6`; OpenAI-compatible base URL is `https://api.cerebras.ai/v1`.
 
@@ -630,5 +645,5 @@ See also: [/gateway/configuration](/gateway/configuration) for full configuratio
 
 - [Models](/concepts/models) — model configuration and aliases
 - [Model Failover](/concepts/model-failover) — fallback chains and retry behavior
-- [Configuration Reference](/gateway/configuration-reference#agent-defaults) — model config keys
+- [Configuration Reference](/gateway/config-agents#agent-defaults) — model config keys
 - [Providers](/providers) — per-provider setup guides
