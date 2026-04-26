@@ -143,6 +143,7 @@ or npm install metadata. Those belong in your plugin code and `package.json`.
 | `providers`                          | No       | `string[]`                       | Provider ids owned by this plugin.                                                                                                                                                                                                |
 | `providerDiscoveryEntry`             | No       | `string`                         | Lightweight provider-discovery module path, relative to the plugin root, for manifest-scoped provider catalog metadata that can be loaded without activating the full plugin runtime.                                             |
 | `modelSupport`                       | No       | `object`                         | Manifest-owned shorthand model-family metadata used to auto-load the plugin before runtime.                                                                                                                                       |
+| `modelCatalog`                       | No       | `object`                         | Declarative model catalog metadata for providers owned by this plugin. This is the control-plane contract for future read-only listing, onboarding, model pickers, aliases, and suppression without loading plugin runtime.       |
 | `providerEndpoints`                  | No       | `object[]`                       | Manifest-owned endpoint host/baseUrl metadata for provider routes that core must classify before provider runtime loads.                                                                                                          |
 | `cliBackends`                        | No       | `string[]`                       | CLI inference backend ids owned by this plugin. Used for startup auto-activation from explicit config refs.                                                                                                                       |
 | `syntheticAuthRefs`                  | No       | `string[]`                       | Provider or CLI backend refs whose plugin-owned synthetic auth hook should be probed during cold model discovery before runtime loads.                                                                                            |
@@ -507,6 +508,11 @@ runtime loads. Read-only channel setup/status discovery can use this metadata
 directly for configured external channels when no setup entry is available, or
 when `setup.requiresRuntime: false` declares setup runtime unnecessary.
 
+`channelConfigs` is plugin manifest metadata, not a new top-level user config
+section. Users still configure channel instances under `channels.<channel-id>`.
+OpenClaw reads manifest metadata to decide which plugin owns that configured
+channel before plugin runtime code executes.
+
 For a channel plugin, `configSchema` and `channelConfigs` describe different
 paths:
 
@@ -553,6 +559,43 @@ Each channel entry can include:
 | `description` | `string`                 | Short channel description for inspect and catalog surfaces.                               |
 | `preferOver`  | `string[]`               | Legacy or lower-priority plugin ids this channel should outrank in selection surfaces.    |
 
+### Replacing another channel plugin
+
+Use `preferOver` when your plugin is the preferred owner for a channel id that
+another plugin can also provide. Common cases are a renamed plugin id, a
+standalone plugin that supersedes a bundled plugin, or a maintained fork that
+keeps the same channel id for config compatibility.
+
+```json
+{
+  "id": "acme-chat",
+  "channels": ["chat"],
+  "channelConfigs": {
+    "chat": {
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "webhookUrl": { "type": "string" }
+        }
+      },
+      "preferOver": ["chat"]
+    }
+  }
+}
+```
+
+When `channels.chat` is configured, OpenClaw considers both the channel id and
+the preferred plugin id. If the lower-priority plugin was only selected because
+it is bundled or enabled by default, OpenClaw disables it in the effective
+runtime config so one plugin owns the channel and its tools. Explicit user
+selection still wins: if the user explicitly enables both plugins, OpenClaw
+preserves that choice and reports duplicate channel/tool diagnostics instead of
+silently changing the requested plugin set.
+
+Keep `preferOver` scoped to plugin ids that can really provide the same channel.
+It is not a general priority field and it does not rename user config keys.
+
 ## modelSupport reference
 
 Use `modelSupport` when OpenClaw should infer your provider plugin from
@@ -582,6 +625,105 @@ Fields:
 | --------------- | ---------- | ------------------------------------------------------------------------------- |
 | `modelPrefixes` | `string[]` | Prefixes matched with `startsWith` against shorthand model ids.                 |
 | `modelPatterns` | `string[]` | Regex sources matched against shorthand model ids after profile suffix removal. |
+
+## modelCatalog reference
+
+Use `modelCatalog` when OpenClaw should know provider model metadata before
+loading plugin runtime. This is the manifest-owned source for fixed catalog
+rows, provider aliases, suppression rules, and discovery mode. Runtime refresh
+still belongs in provider runtime code, but the manifest tells core when runtime
+is required.
+
+```json
+{
+  "providers": ["openai"],
+  "modelCatalog": {
+    "providers": {
+      "openai": {
+        "baseUrl": "https://api.openai.com/v1",
+        "api": "openai-responses",
+        "models": [
+          {
+            "id": "gpt-5.4",
+            "name": "GPT-5.4",
+            "input": ["text", "image"],
+            "reasoning": true,
+            "contextWindow": 256000,
+            "maxTokens": 128000,
+            "cost": {
+              "input": 1.25,
+              "output": 10,
+              "cacheRead": 0.125
+            },
+            "status": "available",
+            "tags": ["default"]
+          }
+        ]
+      }
+    },
+    "aliases": {
+      "azure-openai-responses": {
+        "provider": "openai",
+        "api": "azure-openai-responses"
+      }
+    },
+    "suppressions": [
+      {
+        "provider": "azure-openai-responses",
+        "model": "gpt-5.3-codex-spark",
+        "reason": "not available on Azure OpenAI Responses"
+      }
+    ],
+    "discovery": {
+      "openai": "static"
+    }
+  }
+}
+```
+
+Top-level fields:
+
+| Field          | Type                                                     | What it means                                                                                               |
+| -------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `providers`    | `Record<string, object>`                                 | Catalog rows for provider ids owned by this plugin. Keys should also appear in top-level `providers`.       |
+| `aliases`      | `Record<string, object>`                                 | Provider aliases that should resolve to an owned provider for catalog or suppression planning.              |
+| `suppressions` | `object[]`                                               | Model rows from another source that this plugin suppresses for a provider-specific reason.                  |
+| `discovery`    | `Record<string, "static" \| "refreshable" \| "runtime">` | Whether the provider catalog can be read from manifest metadata, refreshed into cache, or requires runtime. |
+
+Provider fields:
+
+| Field     | Type                     | What it means                                                     |
+| --------- | ------------------------ | ----------------------------------------------------------------- |
+| `baseUrl` | `string`                 | Optional default base URL for models in this provider catalog.    |
+| `api`     | `ModelApi`               | Optional default API adapter for models in this provider catalog. |
+| `headers` | `Record<string, string>` | Optional static headers that apply to this provider catalog.      |
+| `models`  | `object[]`               | Required model rows. Rows without an `id` are ignored.            |
+
+Model fields:
+
+| Field           | Type                                                           | What it means                                                               |
+| --------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `id`            | `string`                                                       | Provider-local model id, without the `provider/` prefix.                    |
+| `name`          | `string`                                                       | Optional display name.                                                      |
+| `api`           | `ModelApi`                                                     | Optional per-model API override.                                            |
+| `baseUrl`       | `string`                                                       | Optional per-model base URL override.                                       |
+| `headers`       | `Record<string, string>`                                       | Optional per-model static headers.                                          |
+| `input`         | `Array<"text" \| "image" \| "document">`                       | Modalities the model accepts.                                               |
+| `reasoning`     | `boolean`                                                      | Whether the model exposes reasoning behavior.                               |
+| `contextWindow` | `number`                                                       | Native provider context window.                                             |
+| `contextTokens` | `number`                                                       | Optional effective runtime context cap when different from `contextWindow`. |
+| `maxTokens`     | `number`                                                       | Maximum output tokens when known.                                           |
+| `cost`          | `object`                                                       | Optional USD per million token pricing, including optional `tieredPricing`. |
+| `compat`        | `object`                                                       | Optional compatibility flags matching OpenClaw model config compatibility.  |
+| `status`        | `"available"` \| `"preview"` \| `"deprecated"` \| `"disabled"` | Listing status. Suppress only when the row must not appear at all.          |
+| `statusReason`  | `string`                                                       | Optional reason shown with non-available status.                            |
+| `replaces`      | `string[]`                                                     | Older provider-local model ids this model supersedes.                       |
+| `replacedBy`    | `string`                                                       | Replacement provider-local model id for deprecated rows.                    |
+| `tags`          | `string[]`                                                     | Stable tags used by pickers and filters.                                    |
+
+Do not put runtime-only data in `modelCatalog`. If a provider needs account
+state, an API request, or local process discovery to know the complete model
+set, declare that provider as `refreshable` or `runtime` in `discovery`.
 
 Legacy top-level capability keys are deprecated. Use `openclaw doctor --fix` to
 move `speechProviders`, `realtimeTranscriptionProviders`,
