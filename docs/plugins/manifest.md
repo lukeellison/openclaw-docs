@@ -170,7 +170,7 @@ or npm install metadata. Those belong in your plugin code and `package.json`.
 | `providerAuthAliases`                | No       | `Record<string, string>`         | Provider ids that should reuse another provider id for auth lookup, for example a coding provider that shares the base provider API key and auth profiles.                                                                        |
 | `channelEnvVars`                     | No       | `Record<string, string[]>`       | Cheap channel env metadata that OpenClaw can inspect without loading plugin code. Use this for env-driven channel setup or auth surfaces that generic startup/config helpers should see.                                          |
 | `providerAuthChoices`                | No       | `object[]`                       | Cheap auth-choice metadata for onboarding pickers, preferred-provider resolution, and simple CLI flag wiring.                                                                                                                     |
-| `activation`                         | No       | `object`                         | Cheap activation planner metadata for provider, command, channel, route, and capability-triggered loading. Metadata only; plugin runtime still owns actual behavior.                                                              |
+| `activation`                         | No       | `object`                         | Cheap activation planner metadata for startup, provider, command, channel, route, and capability-triggered loading. Metadata only; plugin runtime still owns actual behavior.                                                     |
 | `setup`                              | No       | `object`                         | Cheap setup/onboarding descriptors that discovery and setup surfaces can inspect without loading plugin runtime.                                                                                                                  |
 | `qaRunners`                          | No       | `object[]`                       | Cheap QA runner descriptors used by the shared `openclaw qa` host before plugin runtime loads.                                                                                                                                    |
 | `contracts`                          | No       | `object`                         | Static bundled capability snapshot for external auth hooks, speech, realtime transcription, realtime voice, media-understanding, image-generation, music-generation, video-generation, web-fetch, web search, and tool ownership. |
@@ -258,9 +258,26 @@ Current consumers use it as a narrowing hint before broader plugin loading, so
 missing activation metadata usually only costs performance; it should not
 change correctness while legacy manifest ownership fallbacks still exist.
 
+Every plugin should set `activation.onStartup` intentionally as OpenClaw moves
+away from implicit startup imports. Set it to `true` only when the plugin must
+run during Gateway startup. Set it to `false` when the plugin is inert at
+startup and should load only from narrower triggers. Omitting `onStartup` keeps
+the deprecated legacy implicit startup sidecar fallback for plugins with no
+static capability metadata; future versions may stop startup-loading those
+plugins unless they declare `activation.onStartup: true`. Plugin status and
+compatibility reports warn with `legacy-implicit-startup-sidecar` when a plugin
+still relies on that fallback.
+
+For migration testing, set
+`OPENCLAW_DISABLE_LEGACY_IMPLICIT_STARTUP_SIDECARS=1` to disable only that
+deprecated fallback. This opt-in mode does not block explicit
+`activation.onStartup: true` plugins or plugins loaded by channel, config,
+agent-harness, memory, or other narrower activation triggers.
+
 ```json
 {
   "activation": {
+    "onStartup": false,
     "onProviders": ["openai"],
     "onCommands": ["models"],
     "onChannels": ["web"],
@@ -271,18 +288,21 @@ change correctness while legacy manifest ownership fallbacks still exist.
 }
 ```
 
-| Field              | Required | Type                                                 | What it means                                                                                                                                     |
-| ------------------ | -------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `onProviders`      | No       | `string[]`                                           | Provider ids that should include this plugin in activation/load plans.                                                                            |
-| `onAgentHarnesses` | No       | `string[]`                                           | Embedded agent harness runtime ids that should include this plugin in activation/load plans. Use top-level `cliBackends` for CLI backend aliases. |
-| `onCommands`       | No       | `string[]`                                           | Command ids that should include this plugin in activation/load plans.                                                                             |
-| `onChannels`       | No       | `string[]`                                           | Channel ids that should include this plugin in activation/load plans.                                                                             |
-| `onRoutes`         | No       | `string[]`                                           | Route kinds that should include this plugin in activation/load plans.                                                                             |
-| `onConfigPaths`    | No       | `string[]`                                           | Root-relative config paths that should include this plugin in startup/load plans when the path is present and not explicitly disabled.            |
-| `onCapabilities`   | No       | `Array<"provider" \| "channel" \| "tool" \| "hook">` | Broad capability hints used by control-plane activation planning. Prefer narrower fields when possible.                                           |
+| Field              | Required | Type                                                 | What it means                                                                                                                                                                                                                      |
+| ------------------ | -------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `onStartup`        | No       | `boolean`                                            | Explicit Gateway startup activation. Every plugin should set this. `true` imports the plugin during startup; `false` opts out of the deprecated implicit sidecar startup fallback unless another matched trigger requires loading. |
+| `onProviders`      | No       | `string[]`                                           | Provider ids that should include this plugin in activation/load plans.                                                                                                                                                             |
+| `onAgentHarnesses` | No       | `string[]`                                           | Embedded agent harness runtime ids that should include this plugin in activation/load plans. Use top-level `cliBackends` for CLI backend aliases.                                                                                  |
+| `onCommands`       | No       | `string[]`                                           | Command ids that should include this plugin in activation/load plans.                                                                                                                                                              |
+| `onChannels`       | No       | `string[]`                                           | Channel ids that should include this plugin in activation/load plans.                                                                                                                                                              |
+| `onRoutes`         | No       | `string[]`                                           | Route kinds that should include this plugin in activation/load plans.                                                                                                                                                              |
+| `onConfigPaths`    | No       | `string[]`                                           | Root-relative config paths that should include this plugin in startup/load plans when the path is present and not explicitly disabled.                                                                                             |
+| `onCapabilities`   | No       | `Array<"provider" \| "channel" \| "tool" \| "hook">` | Broad capability hints used by control-plane activation planning. Prefer narrower fields when possible.                                                                                                                            |
 
 Current live consumers:
 
+- Gateway startup planning uses `activation.onStartup` for explicit startup
+  import and opt-out of deprecated implicit sidecar startup fallback
 - command-triggered CLI planning falls back to legacy
   `commandAliases[].cliCommand` or `commandAliases[].name`
 - agent-runtime startup planning uses `activation.onAgentHarnesses` for
@@ -1116,6 +1136,7 @@ See [Configuration reference](/gateway/configuration) for the full `plugins.*` s
 - `channels`, `providers`, `cliBackends`, and `skills` can all be omitted when a plugin does not need them.
 - `providerDiscoveryEntry` must stay lightweight and should not import broad runtime code; use it for static provider catalog metadata or narrow discovery descriptors, not request-time execution.
 - Exclusive plugin kinds are selected through `plugins.slots.*`: `kind: "memory"` via `plugins.slots.memory`, `kind: "context-engine"` via `plugins.slots.contextEngine` (default `legacy`).
+- Declare exclusive plugin kind in this manifest. Runtime-entry `OpenClawPluginDefinition.kind` is deprecated and remains only as a compatibility fallback for older plugins.
 - Env-var metadata (`setup.providers[].envVars`, deprecated `providerAuthEnvVars`, and `channelEnvVars`) is declarative only. Status, audit, cron delivery validation, and other read-only surfaces still apply plugin trust and effective activation policy before treating an env var as configured.
 - For runtime wizard metadata that requires provider code, see [Provider runtime hooks](/plugins/architecture-internals#provider-runtime-hooks).
 - If your plugin depends on native modules, document the build steps and any package-manager allowlist requirements (for example, pnpm `allow-build-scripts` + `pnpm rebuild <package>`).

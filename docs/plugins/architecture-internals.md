@@ -60,6 +60,11 @@ to narrow plugin loading before broader registry materialization:
   channel id
 - explicit provider setup/runtime resolution narrows to plugins that own the
   requested provider id
+- Gateway startup planning uses `activation.onStartup` for explicit startup
+  imports and startup opt-outs; every plugin should declare it as OpenClaw
+  moves away from implicit startup imports, while plugins without static
+  capability metadata and without `activation.onStartup` still use the
+  deprecated implicit startup sidecar fallback for compatibility
 
 The activation planner exposes both an ids-only API for existing callers and a
 plan API for new diagnostics. Plan entries report why a plugin was selected,
@@ -955,7 +960,7 @@ pipeline rather than just add memory search or hooks.
 import { buildMemorySystemPromptAddition } from "openclaw/plugin-sdk/core";
 
 export default function (api) {
-  api.registerContextEngine("lossless-claw", () => ({
+  api.registerContextEngine("lossless-claw", (ctx) => ({
     info: { id: "lossless-claw", name: "Lossless Claw", ownsCompaction: true },
     async ingest() {
       return { ingested: true };
@@ -977,6 +982,9 @@ export default function (api) {
 }
 ```
 
+The factory `ctx` exposes optional `config`, `agentDir`, and `workspaceDir`
+values for construction-time initialization.
+
 If your engine does **not** own the compaction algorithm, keep `compact()`
 implemented and delegate it explicitly:
 
@@ -987,7 +995,7 @@ import {
 } from "openclaw/plugin-sdk/core";
 
 export default function (api) {
-  api.registerContextEngine("my-memory-engine", () => ({
+  api.registerContextEngine("my-memory-engine", (ctx) => ({
     info: {
       id: "my-memory-engine",
       name: "My Memory Engine",
