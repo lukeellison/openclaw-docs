@@ -54,7 +54,7 @@
   "redirects": [
     {
       "source": "/channels/bluebubbles",
-      "destination": "/channels/imessage"
+      "destination": "/channels/imessage-from-bluebubbles"
     },
     {
       "source": "/install/migrating-matrix",
@@ -1063,6 +1063,7 @@
                   "channels/msteams",
                   "channels/googlechat",
                   "channels/imessage",
+                  "channels/imessage-from-bluebubbles",
                   "channels/matrix",
                   "channels/matrix-migration",
                   "channels/matrix-push-rules"
