@@ -71,9 +71,11 @@ bundled-plugin helpers). For the full catalog — grouped and linked — see
 [Plugin SDK subpaths](/plugins/sdk-subpaths).
 
 The compiler entrypoint inventory lives in
-`scripts/lib/plugin-sdk-entrypoints.json`; package exports are generated from
-the public subset after subtracting repo-local test/internal subpaths listed in
-`scripts/lib/plugin-sdk-private-local-only-subpaths.json`. Run
+`scripts/lib/plugin-sdk-entrypoints.json`; typed public exports exclude the
+internal subpaths listed in
+`scripts/lib/plugin-sdk-private-local-only-subpaths.json`. Production entries
+on that list retain JavaScript-only host runtime exports for separately
+published official plugins, while test-only entries remain unexported. Run
 `pnpm plugin-sdk:surface` to audit the public export count. Deprecated public
 subpaths that are old enough and unused by bundled extension production code are
 tracked in `scripts/lib/plugin-sdk-deprecated-public-subpaths.json`; broad
@@ -587,10 +589,13 @@ AI CLI backend such as `claude-cli` or `my-cli`.
   limit selected for the run, so native-compaction backends can align their
   own threshold without provider-specific core branches.
 - Backends that can disable all native tools for a specific run may declare
-  `nativeToolMode: "selectable"`. Restricted calls pass an empty
-  `ctx.toolAvailability.native` tuple plus an exact host-isolated MCP allowlist;
+  `nativeToolMode: "selectable"`. Restricted calls pass an exact
+  `ctx.toolAvailability.native` list plus an exact host-isolated MCP allowlist;
   `resolveExecutionArgs` must enforce both on the final fresh or resume argv.
-  OpenClaw fails closed if the backend cannot do so.
+  To accept runtime caps such as cron `toolsAllow`, the backend must also
+  implement `resolveRuntimeToolAvailability`; OpenClaw disables all native
+  tools and fails closed if the backend cannot translate or enforce the MCP
+  cap.
 
 For an end-to-end authoring guide, see
 [CLI backend plugins](/plugins/cli-backend-plugins).
