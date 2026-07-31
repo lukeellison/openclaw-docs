@@ -15,6 +15,7 @@ in a hosted or self-hosted Buzz workspace.
 - Receives normal, rich-content, and structured-diff messages from approved
   Buzz rooms
 - Replies in the same room and thread
+- Shows typing while an accepted agent turn is running
 - Preserves Markdown in replies and sends text through OpenClaw's built-in
   `message` tool
 - Supports mention requirements and sender allowlists
@@ -154,6 +155,7 @@ delivery.
 Agents can:
 
 - Reply to an incoming Buzz message in its room or thread
+- Show room- or thread-scoped typing while generating a reply
 - Receive Buzz kind `9` normal messages, kind `40002` rich-content messages,
   and kind `40008` structured diffs
 - Send Markdown text to an approved Buzz room as a normal kind `9` message
@@ -164,6 +166,13 @@ Structured diffs include their repository, commit, file, branch, pull request,
 language, description, truncation status, and unified-diff content in the agent
 context when those fields are present. Diff content is not interpreted as an
 OpenClaw command or textual mention.
+
+Typing uses Buzz's ephemeral kind `20002` on the active authenticated Gateway
+connection. Ordinary replies refresh it every three seconds; heartbeat-driven
+replies use OpenClaw's shared typing interval, which defaults to six seconds.
+OpenClaw stops refreshing when the turn completes, is cancelled, fails, or the
+Gateway shuts down. Typing failures do not block the reply or reconnect the
+Gateway solely to send an ephemeral event.
 
 Humans and automations can test the same outbound path from the CLI:
 
@@ -328,6 +337,32 @@ openclaw message send \
 
 For a full round trip, have an allowed Buzz user mention the bot and confirm that
 OpenClaw replies in the room.
+
+### QA Lab round trip
+
+Source checkouts can exercise the production Buzz channel path with two
+dedicated test identities:
+
+```bash
+pnpm openclaw qa buzz \
+  --credential-file /secure/path/buzz-qa-credentials.json \
+  --provider-mode mock-openai
+```
+
+The command runs a real relay canary and mention-gating check while using the
+deterministic mock model. The private JSON credential
+file contains `relayUrl`, `roomId`, `driverPrivateKey`, and `sutPrivateKey`, plus
+optional `driverAuthTag` and `sutAuthTag` values for closed relays. Both test
+public keys must be room members, and the SUT public key must have the **Bot**
+role. A closed relay may require both public keys to be enrolled separately.
+Use `--credential-source convex` for pooled QA credentials.
+
+Use `wss://` for hosted relays. Plaintext `ws://` credential URLs are accepted
+only for loopback development relays.
+
+Never use a human owner or admin private key. Private keys and optional
+authorization values are parent-harness secrets and must not appear in logs,
+artifacts, screenshots, shell history, or source control.
 
 ## Rotate the bot identity
 
