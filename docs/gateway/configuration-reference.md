@@ -1081,7 +1081,7 @@ Validation and safety notes:
 **Endpoints:**
 
 - `POST /hooks/wake` → `{ text, mode?: "now"|"next-heartbeat", agentId?, sessionKey? }`
-  - `sessionKey` is accepted only when `hooks.allowRequestSessionKey=true` (default: `false`) and must match `hooks.allowedSessionKeyPrefixes` when configured.
+  - `sessionKey` requires `mode: "now"`, is accepted only when `hooks.allowRequestSessionKey=true` (default: `false`), and must match `hooks.allowedSessionKeyPrefixes` when configured.
   - A supplied `agentId` must name a configured agent.
 - `POST /hooks/agent` → `{ message, name?, agentId?, sessionKey?, sessionMode?, wakeMode?, deliver?, channel?, to?, accountId?, model?, thinking?, timeoutSeconds? }`
   - A supplied `agentId` must name a configured agent.
@@ -1260,8 +1260,8 @@ Reference env vars in any config string with `${VAR_NAME}`:
 ```
 
 - Only uppercase names matched: `[A-Z_][A-Z0-9_]*`.
-- Missing/empty vars throw an error at config load.
-- Escape with `$${VAR}` for a literal `${VAR}`.
+- Missing/empty vars stay visibly unresolved, emit a warning, and are unavailable to consumers that require the value.
+- Escape with `$${VAR}` to produce a literal `${VAR}` value.
 - Works with `$include`.
 
 ---
