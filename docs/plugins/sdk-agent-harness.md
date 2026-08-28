@@ -206,18 +206,28 @@ deadline controls, and one prepared `authorization`:
   snapshot restricted to the single profile selected for that call. Core owns
   automatic fallback order and invokes the harness separately for each candidate.
 
-Host-authorized calls must use the supplied model and credential without
-substitution. Harness-authorized calls may resolve only the supplied prepared
+Host-authorized calls must use the supplied model and credential without substitution.
+Bundled host-authorized harnesses share one host-prepared completion helper that
+preserves the exact route, deadline, sampling options, and empty tool surface.
+Harness-authorized calls may resolve only the supplied prepared
 route and scoped profiles, or the harness's native account when the plan leaves
 auth to the harness. The harness must not switch routes, reuse a native thread,
 attach tools, invoke agent lifecycle hooks, or deliver output.
 
 Return `{ assistant: AssistantMessage }`. Core accepts only terminal text/thinking
 content with a `stop` or `length` stop reason; tool calls, failed stops, and empty
-output are rejected. If the harness cannot prove these semantics, omit the capability.
+output are rejected. Title requests set `outputTextPolicy: "strict-visible"`:
+keep reasoning separate without recovering ambiguous reasoning as visible text;
+an empty visible result is valid. The host-prepared helper maps this policy to
+strict parsing before recovery. Omission preserves ordinary recovery behavior.
+CLI-backed title calls also allow clean empty output without a silent-reply token;
+ordinary CLI calls still reject empty responses.
+Older external harnesses may ignore the policy; a final title filter cannot
+restore provenance that a harness already discarded, so this is not a universal
+reasoning-privacy guarantee. If the harness cannot enforce isolation, omit the capability.
 Callers that require isolated completion then fail closed before invoking that
 harness; OpenClaw does not replay the request through another runtime.
-Plugin callers select this behavior through
+Plugin callers request isolated execution through
 `api.runtime.llm.complete({ execution: { mode: "isolated-agent-runtime" } })`;
 the harness callback is the provider-side enforcement SPI, not a second caller
 API.
@@ -280,11 +290,13 @@ error. Do not use harness scope after a request or tool action may have produced
 side effects.
 
 Configured runtime policy remains authoritative about the desired runtime. A
-persisted session `agentHarnessId` keeps ownership of its native transcript
+locked session `agentHarnessId` keeps ownership of its native transcript
 while route/auth preparation is still pending. Neither makes an incompatible
 route compatible: once prepared facts exist, the selected or pinned harness
-must support them or the run fails closed. `/status` shows the effective runtime
-selected from policy, persisted ownership, and route support.
+must support them, declare the exact-request OpenClaw fallback, or the run fails
+closed. Next-turn metadata uses the same registered support decision and retains
+its model/provider/session source. An unlocked historical producer does not pin
+the next turn. Projection never loads a harness or reads credentials.
 Prepared status is explicit: missing `runtimePolicy` stays undeclared instead
 of being inferred from whichever transport fields happen to be present.
 When harness-owned auth leaves multiple physical routes unresolved, the
@@ -492,10 +504,10 @@ model refs remain compatibility aliases for the native harness.
 When this mode runs, Codex owns the native thread id, resume behavior,
 compaction, and app-server execution. OpenClaw still owns the chat channel,
 visible transcript mirror, tool policy, approvals, media delivery, and session
-selection. Use provider/model `agentRuntime.id: "codex"` when you need to
-prove that only the Codex app-server path can claim the run. Explicit plugin
-runtimes fail closed; Codex app-server selection failures and runtime failures
-are not retried through another runtime.
+selection. Use provider/model `agentRuntime.id: "codex"` to require a registered
+Codex harness. Unsupported routes/auth fail closed unless the harness declares
+an exact-request fallback before execution. Codex runtime failures are not
+retried through another runtime.
 
 ## Runtime strictness
 
@@ -509,7 +521,7 @@ incompatible route compatible. Selected plugin harness failures always fail
 hard. This does not block an explicit provider/model
 `agentRuntime.id: "openclaw"`.
 
-For Codex-only embedded runs:
+To request Codex for embedded runs:
 
 ```json
 {
@@ -585,10 +597,10 @@ Legacy whole-agent runtime examples like this are ignored:
 ```
 
 With an explicit plugin runtime, a session fails early when the requested
-harness is not registered, does not support the resolved provider/model, or
-fails before producing turn side effects. That is intentional for Codex-only
-deployments and for live tests that must prove the Codex app-server path is
-actually in use.
+harness is not registered or rejects the resolved provider/model without a
+declared fallback. An authored transport override may select OpenClaw through
+that fallback even with an explicit runtime. To prove native execution, inspect
+the actual harness in the completed result; configured intent alone is not proof.
 
 This setting only controls the embedded agent harness. It does not disable
 image, video, music, TTS, PDF, or other provider-specific model routing.
