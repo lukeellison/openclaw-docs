@@ -82,7 +82,7 @@ explicitly unsupported even though the ACP spawn and child are observable.
 
 <AccordionGroup>
   <Accordion title="Non-blocking, push-based completion">
-    - `sessions_spawn` is non-blocking; it returns a run id immediately.
+    - `sessions_spawn` returns a run id after startup is accepted, without waiting for the child task to finish. Spawns from an OpenClaw cloud worker can first wait for child provisioning and node enrollment.
     - On completion, the sub-agent reports back to the parent/requester session.
     - Agent turns that need child results should call `sessions_yield` after spawning required work. That ends the current turn and lets the completion event arrive as the next model-visible message.
     - Completion is push-based. Once spawned, do **not** poll `/subagents list`, `sessions_list`, or `sessions_history` in a loop just to wait for it to finish; check status on-demand only when debugging.
@@ -215,7 +215,7 @@ In `prefer` mode, hidden sub-agents are for internal legwork that the user does 
   Spawn under another configured agent id when allowed by `subagents.allowAgents`.
 </ParamField>
 <ParamField path="cwd" type="string">
-  Optional task working directory for the child run. Native sub-agents still load bootstrap files from the target agent workspace; `cwd` only changes where runtime tools and CLI harnesses do the delegated work. For visible sessions, paths outside configured agent workspaces require `operator.admin`; omit `cwd` to use the target agent workspace.
+  Optional task working directory for the child run. Native sub-agents still load bootstrap files from the target agent workspace; `cwd` only changes where runtime tools and CLI harnesses do the delegated work. For visible sessions, paths outside configured agent workspaces require `operator.admin`. With `worktree: true`, omitting `cwd` inherits the same-agent parent's managed repository when available; otherwise the target agent workspace is used.
 </ParamField>
 <ParamField path="runtime" type='"subagent" | "acp"' default="subagent">
   `acp` is only for external ACP harnesses (`claude`, `droid`, `gemini`, `opencode`, or explicitly requested Codex ACP/acpx) and for `agents.entries.*` entries whose `runtime.type` is `acp`.
@@ -241,7 +241,7 @@ In `prefer` mode, hidden sub-agents are for internal legwork that the user does 
 <ParamField path="mode" type='"run" | "session"' default="run">
   If `thread: true` and `mode` is omitted, default becomes `session`. `mode: "session"` requires `thread: true`.
   If thread binding is unavailable for the requester channel, use `mode: "run"` instead.
-  With `visible: true`, omit `mode`; visible sessions are persistent and do not support `mode: "run"`.
+  With `visible: true`, omit `mode` or use the default `"run"`; the visible session remains persistent. `mode: "session"` is unavailable on this path.
 </ParamField>
 <ParamField path="cleanup" type='"delete" | "keep"' default="keep">
   `"delete"` archives the session immediately after announce (still keeps the transcript via rename).
@@ -255,8 +255,8 @@ In `prefer` mode, hidden sub-agents are for internal legwork that the user does 
 <ParamField path="visible" type="boolean" default="false">
   Create a persistent dashboard session for work the user will watch or return to, or when they ask for a thread. Visible spawns support only `runtime: "subagent"` and always keep the created session.
 </ParamField>
-<ParamField path="category" type="string">
-  Optional sidebar category for a visible session. Omitted, empty, and whitespace-only values mean no category and are also accepted for hidden or ACP runs. A nonempty category requires `visible: true`.
+<ParamField path="group" type="string">
+  Optional custom sidebar group for a visible session; a new name creates the group. Omitted, empty, and whitespace-only values mean ungrouped and are also accepted for hidden or ACP runs. A nonempty group requires `visible: true`.
 </ParamField>
 <ParamField path="worktree" type="boolean" default="false">
   Provision a managed git worktree for the new dashboard session. Requires `visible: true`.
@@ -275,9 +275,9 @@ their latest assistant turn back to the requester; external delivery stays with
 the parent/requester agent.
 </Warning>
 
-With `visible: true`, `category`, `model`, `cwd`, and a same-agent `context: "fork"` are supported. Use this durable mode for coding, multi-step work, or results the user may revisit, steer, or keep; it appears in the sidebar when the web UI is available and still works without it. Pass `category` to place the new session in that sidebar group atomically; omitted or blank values leave it ungrouped. A sandboxed target restricts `cwd` to that agent's workspace. Non-admin callers may use `cwd` only inside a configured agent workspace. Omit `cwd` to use the target agent workspace; for another repository, ask the operator to start the session from a registered project. Do not replace a rejected persistent spawn with the synchronous `openclaw agent` CLI, whose command deadline defaults to 600 seconds. Thread binding, `mode`, thinking overrides, `lightContext`, `attachments`, and `attachAs` are unavailable on this path because visible sessions are persistent dashboard sessions created through `sessions.create`. The new dashboard child inherits the requester's effective tool-policy ceiling before its first turn. Session listing and addressing obey `tools.sessions.visibility`; the default `tree` scope covers the current session and its own spawn subtree, while the main session can reach every same-agent session unless `self` or the sandbox spawned-only clamp applies. See [Session tools](/concepts/session-tool#visibility) and [Managed worktrees](/concepts/managed-worktrees).
+With `visible: true`, `group`, `model`, `cwd`, and a same-agent `context: "fork"` are supported. Use this durable mode for coding, multi-step work, or results the user may revisit, steer, or keep; it appears in the sidebar when the web UI is available and still works without it. Pass `group` to place the new session in that sidebar group atomically; omitted or blank values leave it ungrouped. A sandboxed target restricts `cwd` to that agent's workspace. Non-admin callers may use `cwd` only inside a configured agent workspace. With `worktree: true`, omitting `cwd` inherits the same-agent parent's live managed repository and creates a separate worktree. Other spawns use the target agent workspace; for another repository, ask the operator to start the session from a registered project. Do not replace a rejected persistent spawn with the synchronous `openclaw agent` CLI, whose command deadline defaults to 600 seconds. Thread binding, `mode: "session"`, thinking overrides, `lightContext`, and attachment staging are unavailable on this path because visible sessions are persistent dashboard sessions created through `sessions.create`. The default `mode: "run"`, empty `attachments`, and an empty `attachAs.mountPath` are accepted without changing that behavior. The new dashboard child inherits the requester's effective tool-policy ceiling before its first turn. Session listing and addressing obey `tools.sessions.visibility`; the default `tree` scope covers the current session and its own spawn subtree, while the main session can reach every same-agent session unless `self` or the sandbox spawned-only clamp applies. See [Session tools](/concepts/session-tool#visibility) and [Managed worktrees](/concepts/managed-worktrees).
 
-If a call fails with `Parameters require visible=true`, omit the named category or worktree options to keep the hidden or ACP runtime. To create a visible session instead, use `visible: true` with `runtime: "subagent"` and omit `mode`, `thread`, `thinking`, `lightContext`, `attachments`, `attachAs`, swarm options, and the ACP-only `streamTo` and `resumeSessionId`. Worktree names and base refs also require `worktree: true`. Adding `visible: true` alone does not make an ACP call compatible.
+If a call fails with `Parameters require visible=true`, omit the named group or worktree options to keep the hidden or ACP runtime. To create a visible session instead, use `visible: true` with `runtime: "subagent"` and omit `mode`, `thread`, `thinking`, `lightContext`, `attachments`, `attachAs`, swarm options, and the ACP-only `streamTo` and `resumeSessionId`. Worktree names and base refs also require `worktree: true`. Adding `visible: true` alone does not make an ACP call compatible.
 
 A visible spawn is attributed to the requesting agent: the new session's creator and initial owner is that agent, shown with its configured identity name and avatar in the sidebar. The accepted result doubles as a receipt with `childSessionKey`, `runId`, a Control UI `sessionUrl` (omitted when the Control UI is disabled), and an `owner` record. When acknowledging the spawn in a channel, put the session URL on the first line and `Owner: <label>` on the second so the user can open the session and see who is responsible. Owners can be reassigned later; see [Multi-user mode](/concepts/multi-user#agent-spawned-sessions).
 
@@ -614,9 +614,9 @@ transcript from within an agent turn:
 
 - Redacts credential/token-like text even when general-purpose log redaction is disabled.
 - Truncates long text blocks (4000 chars per block) and drops thinking signatures, reasoning replay payloads, and inline image data.
-- Enforces an 80 KB response cap; oversized rows are replaced with `[sessions_history omitted: message too large]`.
+- Caps returned messages at 80 KB; older rows can be dropped or an oversized row replaced with `[sessions_history omitted: message too large]`.
 - Use `nextOffset` when present to page backward through older transcript windows.
-- `sessions_history` does **not** strip reasoning tags, `<relevant-memories>` scaffolding, or tool-call XML from message text — it returns structured content blocks close to the raw transcript shape, just redacted and size-bounded. `/subagents log` applies the heavier prose sanitizer (strips reasoning tags, memory scaffolding, and tool-call XML) because it renders plain chat lines instead of structured blocks.
+- Returns structured history rather than `/subagents log`'s plain chat lines. Reasoning tags, `<relevant-memories>` / `<relevant_memories>` scaffolding, and tool-call XML can remain in message text: `sessions_history` does not apply the log command's assistant prose sanitizer. See [Session tools](/concepts/session-tool#listing-and-reading-sessions) for the recall guarantees.
 - Raw on-disk transcript inspection is the fallback when you need the full byte-for-byte transcript.
 
 ## Tool policy
@@ -636,8 +636,8 @@ depth. Leaf sub-agents (default depth-1 behavior, and always at depth 2)
 additionally lose `subagents`, `sessions_list`, `sessions_history`, and
 `sessions_spawn`, so sub-agent communication stays on the announce chain.
 
-`sessions_history` remains a bounded, sanitized recall view here too — it
-is not a raw transcript dump.
+`sessions_history` remains a bounded, redacted recall view here too — it
+is neither a raw transcript dump nor a prose-only rendering.
 
 When `maxSpawnDepth >= 2`, depth-1 orchestrator sub-agents additionally
 receive `sessions_spawn`, `subagents`, `sessions_list`, and
@@ -742,7 +742,7 @@ still need normal device approval for scope upgrades.
 
 - Direct announce attempts are best-effort, but admitted session-queued completion handoffs and their owner/task projections survive gateway restarts in the shared SQLite state database.
 - Sub-agents still share the same gateway process resources; treat `maxConcurrent` as a safety valve.
-- `sessions_spawn` is always non-blocking: it returns `{ status: "accepted", runId, childSessionKey }` immediately.
+- `sessions_spawn` returns `{ status: "accepted", runId, childSessionKey }` when startup is accepted, without waiting for the child task to finish. Cloud-worker spawns can wait for provisioning before returning this receipt.
 - Sub-agent context only injects `AGENTS.md` (no `SOUL.md`, `IDENTITY.md`, `USER.md`, `MEMORY.md`, or `BOOTSTRAP.md`). Its `## Tools` section carries environment-specific notes. Codex-native subagents follow the same boundary through native `AGENTS.md` discovery, while parent-only persona, identity, and user files are injected as turn-scoped collaboration instructions so children do not clone them.
 - Maximum nesting depth is 5 (`maxSpawnDepth` range: 1-5). Depth 2 is recommended for most use cases.
 - `maxChildrenPerAgent` caps active children per session (default `5`, range `1-20`).
