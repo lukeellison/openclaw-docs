@@ -83,7 +83,7 @@ The owner-gated `sessions` tool exposes bounded self-service surfaces:
 - `action: "reset"` resets another visible session selected by `sessionKey`.
 - `action: "delete"` first archives and then deletes the exact same generation of another visible session selected by `sessionKey`. By default its transcript is retained as a deleted archive; pass `deleteTranscript: false` to leave the transcript state untouched. Resetting or deleting the session currently running the tool is rejected.
 - `action: "assign_owner"` hands session responsibility to a person or agent. Pass `ownerType` (`"human"` or `"agent"`) and `ownerId`; the target is the current session by default, or another visible session via `sessionKey`. Agent owner ids must name a configured agent. The assignment records who reassigned it and when, and the Control UI reflects the new owner immediately. Ownership is display and responsibility, not access control; see [Multi-user mode](/concepts/multi-user).
-- `group_list`, `group_set`, `group_rename`, and `group_delete` manage the global ordered session-group catalog. `group_set` (`names`) declaratively replaces the catalog: array order becomes sidebar order, new names are created, and existing groups left out of the list are deleted — reorder by passing the complete current list in the new order, and prefer `group_delete` to remove a single group. Catalog actions never move sessions; use `action: "patch"` with `group` for membership.
+- `group_list`, `group_set`, `group_rename`, and `group_delete` manage the global ordered session-group catalog. `group_set` (`names`) declaratively replaces the catalog: array order becomes sidebar order, new names are created, and existing empty groups left out of the list are deleted — reorder by passing the complete current list in the new order, and prefer `group_delete` to remove a single group. Catalog actions never move sessions; use `action: "patch"` with `group` for membership. `group_set` rejects dropping a group that still has member sessions; use `group_delete` first.
 
 Use `sessions_spawn` with `visible: true` to create a persistent dashboard session. Pass `group` to place it in a sidebar group atomically; omit `group` or pass an empty string to leave it ungrouped. This keeps session creation on the controlled spawn path, which enforces the parent's tool policy, sandbox, concurrency limits, and run timeout.
 
@@ -103,7 +103,7 @@ In Code Mode, the conversation tools reuse their exact Gateway output contracts.
 
 `sessions_send` runs another session on the same Gateway and optionally waits for the response. Its `sessionKey`, `label`, or `agentId` selects local model context, not an external destination. The resulting reply can still be announced through the established requester or target delivery context; that existing behavior is unchanged. For exact external delivery, use a conversation tool or `message` with an explicit channel and target.
 
-Sessions keep their addresses when execution moves between the Gateway, a paired device, and a cloud worker. An OpenClaw worker can send to an authorized parent, child, or sibling using its exact session key, including a target running on the Gateway. The Gateway validates the current session identities and normal visibility policy before admitting the target turn; target placement does not grant messaging access. Cross-tree, archived, and replaced session targets remain denied.
+Sessions keep their addresses when execution moves between the Gateway, a paired device, and a cloud worker. An OpenClaw worker can send to an authorized parent, child, or sibling using its exact session key, including a target running on the Gateway. The Gateway validates the current session identities and normal visibility policy before admitting the target turn; target placement does not grant messaging access. Targets outside the configured visibility scope, archived targets, and replaced targets remain denied.
 
 - **Fire-and-forget:** set `timeoutSeconds: 0` to enqueue and return immediately.
 - **Wait for reply:** set a timeout and get the response inline.
@@ -171,9 +171,16 @@ Session tools are scoped to limit what the agent can see:
 | `agent` | All sessions for this agent                                       |
 | `all`   | All sessions (cross-agent if configured)                          |
 
-Default is `tree`. The main-session widening applies to list, history, search,
-send, and status, but never crosses agents. `self` remains a strict lockdown,
-including for main. A sandboxed caller under the default spawned-only session
+Default is `agent`: unsandboxed sessions, including retained cron sessions, can
+list, read, search, message, and manage other sessions of the same agent. This
+can include other users sharing that agent. Set `tree` explicitly for current
+plus spawned scope; its canonical main-session exception still covers all
+same-agent sessions. Set `self` for strict current-session access, including main.
+
+The existing `agent` scope does not include children owned by another agent.
+Keep explicit `tree` when relying on its owned native/ACP child exception, or
+use `all` with the appropriate `tools.agentToAgent` policy. Ordinary cross-agent
+access remains gated. A sandboxed caller under the default spawned-only session
 tool clamp stays limited to its spawn subtree. Incognito sessions remain hidden
 from every cross-session tool. Ambient group watches still add activity notices
 and prompt hints; they do not grant access.
