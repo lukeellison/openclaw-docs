@@ -173,8 +173,9 @@ Gateway or chat on iPhone retires the pending spoken reply and clears the old
 Watch preview. Leaving Watch Chat or backgrounding the app stops playback;
 a reply received while away can be read on return if its wait has not expired.
 
-The spoken-reply wait expires after 90 seconds. Cancelling that wait or stopping
-speech does **not** cancel the Gateway chat run or remove a queued message.
+The spoken-reply wait expires after 90 seconds and shows **Spoken reply timed
+out. Check Chat on iPhone.**, including after reopening the Watch app. Cancelling
+that wait or stopping speech does **not** cancel the Gateway chat run or remove a queued message.
 If no reply is spoken, refresh Chat or check the conversation on iPhone before
 resending. Long runs and interrupted return delivery can still require this
 manual readback. Keep the Gateway updated for reliable reply attribution when
@@ -257,6 +258,12 @@ deletes the bootstrap credential. Direct mode covers only the commands below.
 Chat, Talk, approvals, and the existing `watch.*` notification flow remain
 iPhone-relay features and still require the paired iPhone.
 
+A `watch.notify` receipt reports Watch transport delivery or queuing, not
+completion of the best-effort iPhone notification mirror. Cancellation is
+checked before starting a new Watch transfer or phone mirror; it cannot recall
+work already handed to WatchConnectivity. Once the phone mirror is handed off,
+it proceeds independently of the invoke.
+
 Direct watchOS node commands:
 
 | Surface       | Commands                       | Notes                                                   |
@@ -308,6 +315,8 @@ Expected operator flow:
 When iOS wakes the app for a silent push, background refresh, or significant-location event, the app attempts a short node reconnect and then calls `node.event` with `event: "node.presence.alive"`. The gateway records this as `lastSeenAtMs`/`lastSeenReason` on the paired node/device metadata only after the authenticated node device identity is known.
 
 The app treats a background wake as successfully recorded only when the gateway response includes `handled: true`. Older gateways may acknowledge `node.event` with `{ "ok": true }`; that response is compatible but does not count as a durable last-seen update.
+
+Background refresh wakes are requested through the system BackgroundTasks scheduler whenever the app moves to the background, after a silent push that could not be applied, and again after each refresh run; iOS decides when they actually execute. They stop if Background App Refresh is turned off for OpenClaw in iOS Settings, leaving push and significant-location wakes.
 
 Compatibility note:
 
