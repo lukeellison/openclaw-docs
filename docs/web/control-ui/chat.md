@@ -2,6 +2,7 @@
 summary: "Composer controls, transcript rendering, side chat, and hosted embeds"
 read_when:
   - Using the composer, tool cards, or the session rail
+  - Finding and installing capabilities from chat
   - Rendering tables, Mermaid diagrams, or hosted embeds
   - Adjusting transcript layout or message width
 title: "Chat"
@@ -157,6 +158,43 @@ Chat error banners, including cloud runner failures, show short messages in full
   </Accordion>
 </AccordionGroup>
 
+### ClawHub recommendation cards
+
+Ask about a capability, such as “Can you install WhatsApp?”, to let the agent find
+an official plugin or skill on ClawHub. When the `message` tool is available, it
+can present up to three matching cards in the conversation.
+
+If you use the `coding` tool profile, include `"message"` in `tools.alsoAllow`
+(for example, `tools: { profile: "coding", alsoAllow: ["message"] }`). Existing
+deny rules still apply. See [Tool access configuration](/gateway/config-tools).
+
+Select a card to open its listing inside the Control UI: plugins open in
+**Plugins**, and skills open in **Skills**. A plugin's **Install** button opens
+the existing installation review; a skill's **Install** button opens its details.
+**Dismiss** dismisses the card from the current view.
+
+An installed capability shows a green checkmark and **Installed**. This means the
+plugin package or linked skill is present. A plugin may still need to be enabled,
+configured, or connected to an account before the agent can use it. The card
+checks the current installation status; select **Status unavailable · Retry** if
+that check fails.
+
+The agent requests cards through `message` with a capability query:
+
+```json
+{
+  "action": "send",
+  "clawhub": { "query": "whatsapp", "kind": "plugin" }
+}
+```
+
+`query` is required; `kind` can be `plugin` or `skill`. Omit `kind` to check plugins
+first, then skills if no official plugin matches. Omit `channel` and `target` to
+reply to the current Control UI conversation. ClawHub supplies the official
+designation, and the Gateway checks installation status; the agent cannot assign
+those badges. A search with no official match or an unavailable catalog returns
+an explanation in chat.
+
 ### Source previews and copying code
 
 Select **Open** on a text attachment to read it directly in the **Files** side
@@ -266,7 +304,7 @@ Absolute external `http(s)` embed URLs stay blocked by default. To let `[embed u
 
 The chat transcript uses a centered readable frame aligned with the composer. Assistant and tool output stay left-aligned while your own messages stay right-aligned inside that frame. In multi-user sessions (for example a group chat relayed from a channel plugin), messages from other attributed participants render left-aligned with the author's avatar, name, and a stable per-identity color, so only the signed-in viewer's messages read as "mine". When two or more attributed participants are present, assistant replies carry a small "Replying to name" marker naming the participant whose message triggered the turn. System entries such as local slash-command output render as centered notice rows without an avatar.
 
-Images in your own messages appear above any accompanying text, without a surrounding bubble background. Hovering an image leaves that layout unchanged, and the text keeps its normal bubble color, including any per-identity tint.
+Images and video previews in your own messages appear above any accompanying text, without a surrounding bubble background. Videos use a still frame with a play icon; select the preview to open the video in the Files panel. If a preview cannot load, the attachment card remains available. Hovering media leaves that layout unchanged, and the text keeps its normal bubble color, including any per-identity tint. Assistant videos retain their inline player.
 
 Messages forwarded by `sessions_send` render as left-aligned speech bubbles with a source-session chip above the message. When avatars are shown, messages from a different known agent use that agent's avatar, or initials in a stable identity color if no avatar is available. Same-agent forwards and unknown senders keep the forward icon. Select the chip to open the source session; hover it to see session progress. Each source session has a stable bubble tint. Forwarded messages without a known source session show the source agent when available, or a generic forwarded-message label. The receiving agent's own replies remain flat text.
 
