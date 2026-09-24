@@ -20,7 +20,7 @@ Use `Package Acceptance` when the question is "does this installable OpenClaw pa
 3. `npm_12_install_sh` installs that exact artifact through the public Linux installer under npm 12 in an isolated home/prefix, then verifies the CLI version and lifecycle-completion guard.
 4. `docker_acceptance` calls `openclaw-live-and-e2e-checks-reusable.yml` with the resolved package source SHA (falling back to `workflow_ref`) and `package_artifact_name=package-under-test`. The reusable workflow downloads that artifact, validates the tarball inventory, prepares package-digest Docker images when needed, and runs the selected Docker lanes against that package instead of packing the workflow checkout. When a profile selects multiple targeted `docker_lanes`, the reusable workflow prepares the package and shared images once, then fans those lanes out as parallel targeted Docker jobs with unique artifacts.
 5. `package_telegram` optionally calls `NPM Telegram Beta E2E`. It runs when `telegram_mode` is not `none` and installs the same `package-under-test` artifact when Package Acceptance resolved one; standalone Telegram dispatch can still install a published npm spec.
-6. `summary` fails the workflow if package resolution, integrity, npm 12 installer acceptance, Docker acceptance, or the optional Telegram lane failed. The `advisory` input downgrades acceptance failures to warnings for advisory callers.
+6. `summary` fails the workflow if package resolution, integrity, npm 12 installer acceptance, Docker acceptance, or the optional Telegram lane failed. Selected lanes keep their first failure; callers cannot downgrade a failing test to a warning.
 
 ### Candidate sources
 
@@ -133,15 +133,12 @@ The Windows packaged and installer fresh lanes also verify that an installed pac
 
 ### Legacy compatibility windows
 
-Package Acceptance has bounded legacy-compatibility windows for already-published packages. Packages through `2026.4.25`, including `2026.4.25-beta.*`, may use the compatibility path:
-
-- known private QA entries in `dist/postinstall-inventory.json` may point at tarball-omitted files;
-- `doctor-switch` may skip the `gateway install --wrapper` persistence subcase when the package does not expose that flag;
-- `update-channel-switch` may prune missing pnpm `patchedDependencies` from the tarball-derived fake git fixture and may log missing persisted `update.channel`;
-- plugin smokes may read legacy install-record locations or accept missing marketplace install-record persistence;
-- `plugin-update` may allow config metadata migration while still requiring the install record and no-reinstall behavior to stay unchanged.
-
-The published `2026.4.26` package may also warn for local build metadata stamp files that were already shipped. Current package validators require both npm lockfile formats to be absent from new tarballs.
+Package Acceptance no longer relaxes assertions for pre-June 2026 candidates.
+Missing inventory entries, shipped local build metadata, missing service-wrapper
+support, and incomplete update or plugin install-record persistence fail the
+current contracts. Current package validators also require both npm lockfile
+formats to be absent from new tarballs. To reproduce historical acceptance
+results, select the matching historical `workflow_ref` tooling.
 
 ### Examples
 
