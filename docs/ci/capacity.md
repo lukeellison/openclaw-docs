@@ -384,7 +384,10 @@ The planner now uses elapsed whole-file segments from that run, including
 imports and hooks, instead of summed concurrent case times. Canonical Vitest
 metadata groups compatible project files together; an oversized project splits
 only at file boundaries. The canonical runtime prerequisite owner places its
-two consumers together, so preparation happens once. Current project
+consumers together, so preparation happens once before Vitest workers start.
+This includes the ordinary Claude CLI executable-launch integration test: its
+native, Node-leading, and npm-shim variants reuse prepared dist instead of
+building TypeScript inside the 240-second CLI-preparation budget. Current project
 invocations fall from 72 to 35, without changing process isolation or coverage.
 The model reserves 104 seconds per row for observed setup, shared worker
 compilation, and wrapper transitions, plus 68 seconds for the one runtime
@@ -631,6 +634,16 @@ refresh used successful jobs in runs `35042635751` and `35044335386`: complete
 child spans of 569.841 and 620.791 seconds replace the stale 136-second weight
 with a rounded median of 595 seconds. Plugin fallback costs have a separate
 estimator and are not inputs to this compact timing reducer.
+
+The September 23 scoped refresh uses successful main runs `35791016837` and
+`35792496414` for the five second-tier compact rows and their displaced groups.
+Complete Gateway-methods generations replace the stale 510-second parent with
+1,023 seconds; partial stripe samples do not supply a parent total. The same
+reducer refreshes 25 other eligible Blacksmith compact prices, including the
+197-second media/UI group and 226-second security group. Partial inventories
+preserve unrelated timing entries. Worker limits, runner classes, admission
+budgets, and matrix caps stay unchanged; exact-head CI measures the resulting
+packing rather than treating estimates as a wall-time guarantee.
 
 The September 16 compact refresh sampled all 168 successful compact jobs in six
 green main runs: `35117379165`, `35120372547`, `35123270863`, `35124135571`,
