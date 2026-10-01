@@ -8,6 +8,14 @@ title: "Updating"
 
 Keep OpenClaw up to date.
 
+App-owned packages declare their update owner in `openclaw-install-owner.json`
+at the package root. For `owner: "macos-app"`, update OpenClaw.app through its
+app updater to update the bundled Gateway and runtime together. `openclaw update`,
+`openclaw update repair`, and Gateway update requests return the marker's update
+hint without changing the package or stopping the Gateway; background checks
+skip package-registry updates. Missing or invalid markers retain normal install
+behavior, with a warning for an invalid marker.
+
 For Docker, Podman, and Kubernetes image replacements, see
 [Upgrading container images](/install/docker#upgrading-container-images). The
 image entrypoint runs Doctor before starting the Gateway and exits if mounted
@@ -167,6 +175,15 @@ Node and Bun readers run only one child per read. An attempted nested reader
 stops before spawning and records `candidate-config-read-recursion`.
 Both runtimes use the same result channel for synchronous and asynchronous reads;
 config diagnostics stay separate from the result.
+
+The running Gateway retains its shutdown code before an in-place update can
+replace the package's bundled files. Transcript shutdown drains captures and
+persists deterministic notes without starting optional model inference. This
+protection applies to updates **from** a release containing the shutdown fix.
+Older running Gateways, including 2026.9.6, can still fail their first shutdown
+with `ERR_MODULE_NOT_FOUND` after package replacement; installing a fixed
+candidate cannot change code already running in that process. Start the updated
+Gateway with its installation owner if the old process exits without restarting.
 
 When a writable managed Node Gateway service points at another global installation,
 the update keeps the active CLI's installation as its target and refreshes the
