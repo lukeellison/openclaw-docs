@@ -80,6 +80,8 @@ Credentials reserved for Control UI link previews are excluded from both agent a
 
 Set an agent's display name, emoji, and avatar under **Agent settings → Overview → Identity**. The identity is stored with that agent and is shared by Control UI clients. Where the transcript shows avatars, saved and streaming assistant replies use the configured agent image or text avatar. Agents without a configured avatar omit the repeated fallback icon.
 
+Browser-wide avatar overrides from before July 2026 are no longer migrated; set the avatar for each agent instead.
+
 In **Agent settings → Files**, an unread file stays unavailable for editing and preview until its content loads. If the initial read fails, choose **Refresh** to retry. Files already loaded and retained drafts stay editable during refresh; **Reset** becomes available once the current file content loads. Unsaved edits stay with their agent when you switch file tabs or select another agent and return. Returning reads the current file from disk while preserving your edits; if the file changed elsewhere, saving keeps the existing conflict recovery choices. These drafts live only in the open Agents settings page: save before leaving the page, reloading the browser, or changing Gateway connections. An ordinary reconnect preserves them.
 
 Elsewhere, agents without a custom image or emoji use a generated face that fills the circular avatar. Its color, eyes, mouth, and solid or pastel background come from the agent ID, so the same agent keeps the same face across reloads and clients. Renaming the agent's display name does not change its face. Generated faces are decorative and do not indicate activity or model choice.
@@ -233,7 +235,10 @@ shows the searchable local inventory. Select a plugin to open its overview.
 
 Opening a plugin shows its description, publisher when available, skills, tools,
 MCP servers, and full README on one overview. Select a tool to read its full
-description. The metadata rail shows available release details, categories, repository, and
+description. Expand an MCP server to see its published endpoint, transport,
+authentication method, requested permissions, and setup notes when available.
+These describe the connection; account connection status is shown separately.
+Plugins can bundle multiple MCP servers. The metadata rail shows available release details, categories, repository, and
 documentation. Security audits link to ClawHub.
 
 Installed, disabled plugins put **Enable** first as the primary action, followed
