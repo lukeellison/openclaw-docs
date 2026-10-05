@@ -12,10 +12,14 @@ Supports foreground and background execution via `process`. If `process` is disa
 
 Completed calls return command output directly. Use `process` only when `exec` reports that a command is still running and provides a `sessionId`; an identifier printed by the command is ordinary output, not a process handle.
 
+Headless node-host commands terminated by an operating-system signal include the signal name in the result, even when no numeric exit code is available. Output printed before termination does not mean the command succeeded.
+
 ## Parameters
 
 <ParamField path="command" type="string" required>
 Shell command to run.
+Gateway-hosted commands containing a literal NUL (U+0000) return an error before process launch; correct the command and retry.
+Empty arguments, newlines, and literal backslash-zero text remain valid and are not rewritten.
 </ParamField>
 
 <ParamField path="workdir" type="string" default="cwd">
@@ -182,6 +186,10 @@ For ordinary configured full/off execution without prompts for these forms, leav
 ### PATH handling
 
 Gateway-hosted commands use an `openclaw` launcher tied to the running Gateway's installation. Source checkouts pin any inherited TSX preload to that checkout on both Node and Bun, so the launcher also works from an agent workspace outside the checkout.
+
+Prepared child commands resolve the launcher's concrete path before they start.
+Switching an installation symlink during an update does not redirect a command
+that was already prepared. A fresh `openclaw` invocation follows the updated link.
 
 - `host=gateway`: merges your login-shell `PATH` into the exec environment. `env.PATH` overrides are rejected for host execution. The daemon itself still runs with a minimal `PATH`:
   - macOS: `/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin`, `/bin`
