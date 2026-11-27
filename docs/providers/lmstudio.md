@@ -212,6 +212,8 @@ With preload enabled, embedding requests also check that their model is loaded a
 instance prepared for the configured context length. This avoids truncating input through a smaller
 loaded instance and lets memory embeddings recover after model eviction even when LM Studio JIT
 loading is disabled. Embedding model and cache identity keep the configured model key.
+If a native preload fails and the subsequent embedding request also fails, the error includes
+the context length OpenClaw attempted alongside the inference error.
 
 ### Disabling preload
 
@@ -300,7 +302,7 @@ could exhaust a 16 GB host. Set a small `contextTokens` in the model entry to re
 }
 ```
 
-LM Studio can truncate inputs that exceed the loaded context and still return a vector. Choose a context that fits both your host and your longest indexed chunk, or reduce the memory chunk size. After reindexing, search for a phrase near the end of a long note and check that the note is returned.
+After a successful preload, OpenClaw uses the prepared context to split long text documents before embedding them. Rebuild an existing index with `openclaw memory index --force`, then search for a phrase near the end of a long note. Choose a context that also fits your queries and any custom input prefix. LM Studio can truncate oversized inputs and still return a vector.
 
 To skip LM Studio for embeddings, [llmman](/providers/llmman#advanced-configuration) sizes the
 embedding context per daemon with `LLMMAN_CONTEXT_LENGTH`.
